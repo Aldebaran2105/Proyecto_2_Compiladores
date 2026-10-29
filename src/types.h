@@ -5,7 +5,6 @@
 
 namespace robotlang {
 
-// MVP contract: every literal is also exactly representable by JavaScript Number.
 using Integer = std::int64_t;
 inline constexpr Integer MaxInteger = 9007199254740991LL;
 
@@ -28,8 +27,6 @@ constexpr const char* domainTypeName(DomainType type) {
     return "?";
 }
 
-// Strong, non-interchangeable domain types. SemanticAnalyzer validates values;
-// direct construction is for trusted IR producers, not validation of source text.
 template <DomainType Kind>
 class DomainInteger {
 public:
@@ -65,6 +62,6 @@ struct Located {
     SourceLocation source;
 };
 
-} // namespace robotlang
+}
 
 #endif

@@ -4,11 +4,12 @@
 #include <string>
 #include <ostream>
 
-// Tipos de token de RobotLang
 enum class TokenType {
     WORLD, ROBOT, AT, FACING,
     FORWARD, RIGHT, LEFT, REPEAT,
     NORTH, SOUTH, EAST, WEST,
+    OBSTACLE, HOLE, WALL, PRIORITY, RUN,
+    ID,
     NUM, LBRACE, RBRACE,
     ERR, END
 };

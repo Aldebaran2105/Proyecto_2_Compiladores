@@ -10,8 +10,8 @@ class Scanner {
 public:
     explicit Scanner(std::string source);
 
-    Token nextToken();                 // devuelve el siguiente token
-    std::vector<Token> scanAll();      // todos los tokens hasta END 
+    Token nextToken();
+    std::vector<Token> scanAll();
 
 private:
     std::string src;   

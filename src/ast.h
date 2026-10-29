@@ -1,112 +1,155 @@
 #ifndef ROBOTLANG_AST_H
 #define ROBOTLANG_AST_H
 
+#include "types.h"
 #include <memory>
+#include <optional>
 #include <ostream>
+#include <string>
 #include <vector>
 
-// Arbol de sintaxis abstracta (AST) de RobotLang.
-// Cada nodo conserva la linea y columna del comienzo de su construccion.
+namespace robotlang::ast {
 
-struct ASTVisitor;
+struct Number { Integer value; SourceLocation source; };
+class Visitor;
+class Program;
+class World;
+class Wall;
+class Obstacle;
+class Hole;
+class Robot;
+class Run;
+class Forward;
+class Turn;
+class Repeat;
 
-struct Node {
-    int line;
-    int col;
-
-    Node(int line, int col) : line(line), col(col) {}
+class Node {
+public:
+    explicit Node(SourceLocation location) : source(location) {}
     virtual ~Node() = default;
-    virtual void accept(ASTVisitor& visitor) = 0;
+    virtual void accept(Visitor& visitor) const = 0;
+    SourceLocation source;
 };
 
-enum class Direction { North, South, East, West };
-enum class TurnSide { Right, Left };
+class WorldItem : public Node { public: using Node::Node; };
+class Command : public Node { public: using Node::Node; };
 
-struct WorldDecl final : Node {
-    int width;
-    int height;
-
-    WorldDecl(int width, int height, int line, int col);
-    void accept(ASTVisitor& visitor) override;
+class World final : public Node {
+public:
+    World(SourceLocation source, Number width, Number height);
+    void accept(Visitor& visitor) const override;
+    Number width, height;
+    std::vector<std::unique_ptr<WorldItem>> items;
 };
 
-struct RobotDecl final : Node {
-    int x;
-    int y;
+class Wall final : public WorldItem {
+public:
+    Wall(SourceLocation source, Number x, Number y, Number width, Number height);
+    void accept(Visitor& visitor) const override;
+    Number x, y, width, height;
+};
+
+class Obstacle final : public WorldItem {
+public:
+    Obstacle(SourceLocation source, Number x, Number y);
+    void accept(Visitor& visitor) const override;
+    Number x, y;
+};
+
+class Hole final : public WorldItem {
+public:
+    Hole(SourceLocation source, Number x, Number y);
+    void accept(Visitor& visitor) const override;
+    Number x, y;
+};
+
+class Robot final : public WorldItem {
+public:
+    Robot(SourceLocation source, std::string id, SourceLocation idSource, Number x, Number y,
+          Direction facing, SourceLocation facingSource, std::optional<Number> priority);
+    void accept(Visitor& visitor) const override;
+    std::string id;
+    SourceLocation idSource;
+    Number x, y;
     Direction facing;
-
-    RobotDecl(int x, int y, Direction facing, int line, int col);
-    void accept(ASTVisitor& visitor) override;
+    SourceLocation facingSource;
+    std::optional<Number> priority;
 };
 
-struct Command : Node {
-    using Node::Node;
+class Forward final : public Command {
+public:
+    Forward(SourceLocation source, Number distance);
+    void accept(Visitor& visitor) const override;
+    Number distance;
 };
 
-struct ForwardCmd final : Command {
-    int distance;
-
-    ForwardCmd(int distance, int line, int col);
-    void accept(ASTVisitor& visitor) override;
+class Turn final : public Command {
+public:
+    Turn(SourceLocation source, bool right, Number angle);
+    void accept(Visitor& visitor) const override;
+    bool right;
+    Number angle;
 };
 
-struct TurnCmd final : Command {
-    TurnSide side;
-    int degrees;
-
-    TurnCmd(TurnSide side, int degrees, int line, int col);
-    void accept(ASTVisitor& visitor) override;
-};
-
-struct RepeatCmd final : Command {
-    int times;
+class Repeat final : public Command {
+public:
+    Repeat(SourceLocation source, Number count);
+    void accept(Visitor& visitor) const override;
+    Number count;
+    SourceLocation closingBrace;
     std::vector<std::unique_ptr<Command>> commands;
-
-    RepeatCmd(int times, std::vector<std::unique_ptr<Command>> commands,
-              int line, int col);
-    void accept(ASTVisitor& visitor) override;
 };
 
-struct Program final : Node {
-    std::unique_ptr<WorldDecl> world;
-    std::unique_ptr<RobotDecl> robot;
+class Run final : public Node {
+public:
+    Run(SourceLocation source, std::string id, SourceLocation idSource);
+    void accept(Visitor& visitor) const override;
+    std::string id;
+    SourceLocation idSource, closingBrace;
     std::vector<std::unique_ptr<Command>> commands;
-
-    Program(std::unique_ptr<WorldDecl> world,
-            std::unique_ptr<RobotDecl> robot,
-            std::vector<std::unique_ptr<Command>> commands,
-            int line, int col);
-    void accept(ASTVisitor& visitor) override;
 };
 
-// Patron Visitor: tanto impresion como validacion semantica usan la misma interfaz.
-struct ASTVisitor {
-    virtual ~ASTVisitor() = default;
-    virtual void visit(Program& node) = 0;
-    virtual void visit(WorldDecl& node) = 0;
-    virtual void visit(RobotDecl& node) = 0;
-    virtual void visit(ForwardCmd& node) = 0;
-    virtual void visit(TurnCmd& node) = 0;
-    virtual void visit(RepeatCmd& node) = 0;
+class Program final : public Node {
+public:
+    explicit Program(std::unique_ptr<World> world);
+    void accept(Visitor& visitor) const override;
+    std::unique_ptr<World> world;
+    std::vector<std::unique_ptr<Run>> runs;
+    SourceLocation end;
 };
 
-class PrintVisitor final : public ASTVisitor {
+class Visitor {
+public:
+    virtual ~Visitor() = default;
+    virtual void visit(const Program&) = 0;
+    virtual void visit(const World&) = 0;
+    virtual void visit(const Wall&) = 0;
+    virtual void visit(const Obstacle&) = 0;
+    virtual void visit(const Hole&) = 0;
+    virtual void visit(const Robot&) = 0;
+    virtual void visit(const Run&) = 0;
+    virtual void visit(const Forward&) = 0;
+    virtual void visit(const Turn&) = 0;
+    virtual void visit(const Repeat&) = 0;
+};
+
+class PrintVisitor final : public Visitor {
 public:
     explicit PrintVisitor(std::ostream& out);
-
-    void visit(Program& node) override;
-    void visit(WorldDecl& node) override;
-    void visit(RobotDecl& node) override;
-    void visit(ForwardCmd& node) override;
-    void visit(TurnCmd& node) override;
-    void visit(RepeatCmd& node) override;
-
+    void visit(const Program&) override;
+    void visit(const World&) override;
+    void visit(const Wall&) override;
+    void visit(const Obstacle&) override;
+    void visit(const Hole&) override;
+    void visit(const Robot&) override;
+    void visit(const Run&) override;
+    void visit(const Forward&) override;
+    void visit(const Turn&) override;
+    void visit(const Repeat&) override;
 private:
     std::ostream& out_;
     int depth_ = 0;
-
-    void indent();
-    void position(const Node& node);
+    void line(const Node& node, const std::string& text);
 };
-
-#endif  // ROBOTLANG_AST_H
+}
+#endif

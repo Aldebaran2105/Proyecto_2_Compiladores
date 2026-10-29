@@ -1,269 +1,118 @@
 #include "semantic.h"
-
-#include <ostream>
-#include <stdexcept>
+#include <algorithm>
+#include <set>
 #include <utility>
 
-namespace robotlang {
+namespace robotlang::extension {
 namespace {
-
-SourceLocation location(const Token& token) {
-    return {token.line, token.col};
-}
-
-template <typename T>
-Located<T> located(Integer value, const Token& token) {
-    return {T(value), location(token)};
-}
-
-} // namespace
-
-const char* diagnosticCodeName(DiagnosticCode code) {
-    switch (code) {
-        case DiagnosticCode::InvalidTokenKind: return "invalid_token_kind";
-        case DiagnosticCode::InvalidIntegerLiteral: return "invalid_integer_literal";
-        case DiagnosticCode::IntegerOutOfRange: return "integer_out_of_range";
-        case DiagnosticCode::NonPositiveValue: return "non_positive_value";
-        case DiagnosticCode::InvalidAngle: return "invalid_angle";
-        case DiagnosticCode::InvalidDirection: return "invalid_direction";
-        case DiagnosticCode::DuplicateWorld: return "duplicate_world";
-        case DiagnosticCode::DuplicateRobot: return "duplicate_robot";
-        case DiagnosticCode::DeclarationOrder: return "declaration_order";
-        case DiagnosticCode::NestedDeclaration: return "nested_declaration";
-        case DiagnosticCode::MissingWorld: return "missing_world";
-        case DiagnosticCode::MissingRobot: return "missing_robot";
-        case DiagnosticCode::InitialPositionOutOfBounds: return "initial_position_out_of_bounds";
-        case DiagnosticCode::UnmatchedRepeatEnd: return "unmatched_repeat_end";
-        case DiagnosticCode::UnclosedRepeat: return "unclosed_repeat";
+const char* commandName(Command::Kind kind) {
+    switch (kind) {
+        case Command::Kind::Forward: return "forward";
+        case Command::Kind::Left: return "left";
+        case Command::Kind::Right: return "right";
+        case Command::Kind::Repeat: return "repeat";
     }
-    return "?";
+    return "";
 }
-
-std::ostream& operator<<(std::ostream& out, const Diagnostic& diagnostic) {
-    out << diagnostic.source.line << ':' << diagnostic.source.col << ": "
-        << (diagnostic.category == DiagnosticCategory::Semantic ? "semantic" : "contract")
-        << '[' << diagnosticCodeName(diagnostic.code) << "] " << diagnostic.message;
-    if (diagnostic.expectedType) out << " (" << domainTypeName(*diagnostic.expectedType) << ')';
-    return out;
+bool contains(const Wall& wall, Integer x, Integer y) {
+    return x >= wall.x.value && x - wall.x.value < wall.width.value &&
+           y >= wall.y.value && y - wall.y.value < wall.height.value;
 }
-
-void SemanticAnalyzer::requireActive() const {
-    if (finished) throw std::logic_error("SemanticAnalyzer has already been finished");
-}
-
-void SemanticAnalyzer::report(DiagnosticCategory category, DiagnosticCode code,
-                              SourceLocation source, std::string message,
-                              std::optional<DomainType> expectedType) {
-    diagnostics.push_back({category, code, source, expectedType, std::move(message)});
-}
-
-bool SemanticAnalyzer::requireKind(const Token& token, TokenType expected,
-                                   std::optional<DomainType> domain) {
-    if (token.type == expected) return true;
-    report(DiagnosticCategory::Contract, DiagnosticCode::InvalidTokenKind, location(token),
-           "Adapter supplied an unexpected token kind", domain);
-    return false;
-}
-
-std::optional<Integer> SemanticAnalyzer::integer(const Token& token, DomainType domain) {
-    if (!requireKind(token, TokenType::NUM, domain)) return std::nullopt;
-    if (token.lexeme.empty() || token.lexeme.find_first_not_of("0123456789") != std::string::npos) {
-        report(DiagnosticCategory::Contract, DiagnosticCode::InvalidIntegerLiteral, location(token),
-               "NUM must preserve a nonempty unsigned decimal lexeme", domain);
-        return std::nullopt;
-    }
-
-    Integer value = 0;
-    for (char character : token.lexeme) {
-        const Integer digit = character - '0';
-        // Check before multiplication or addition; even arbitrarily long input
-        // cannot overflow the C++ accumulator.
-        if (value > (MaxInteger - digit) / 10) {
-            report(DiagnosticCategory::Semantic, DiagnosticCode::IntegerOutOfRange, location(token),
-                   "Integer exceeds the MVP maximum 9007199254740991", domain);
-            return std::nullopt;
-        }
-        value = value * 10 + digit;
-    }
-
-    if ((domain == DomainType::Dimension || domain == DomainType::Distance) && value == 0) {
-        report(DiagnosticCategory::Semantic, DiagnosticCode::NonPositiveValue, location(token),
-               "Value must be greater than zero", domain);
-        return std::nullopt;
-    }
-    if (domain == DomainType::Angle && value != 90 && value != 180 && value != 270) {
-        report(DiagnosticCategory::Semantic, DiagnosticCode::InvalidAngle, location(token),
-               "Angle must be 90, 180 or 270", domain);
-        return std::nullopt;
-    }
-    return value;
-}
-
-std::optional<Located<Direction>> SemanticAnalyzer::direction(const Token& token) {
-    switch (token.type) {
-        case TokenType::NORTH: return Located<Direction>{Direction::North, location(token)};
-        case TokenType::EAST: return Located<Direction>{Direction::East, location(token)};
-        case TokenType::SOUTH: return Located<Direction>{Direction::South, location(token)};
-        case TokenType::WEST: return Located<Direction>{Direction::West, location(token)};
-        default:
-            report(DiagnosticCategory::Contract, DiagnosticCode::InvalidDirection, location(token),
-                   "Direction must be a NORTH, EAST, SOUTH or WEST token", DomainType::Direction);
-            return std::nullopt;
+void printCommands(const std::vector<Command>& commands, std::ostream& out, int depth) {
+    for (const auto& c : commands) {
+        out << std::string(static_cast<std::size_t>(depth) * 2, ' ') << '#' << c.id << ' '
+            << commandName(c.kind) << ' ' << c.argument.value << " @" << c.source.line << ':' << c.source.col;
+        if (c.kind == Command::Kind::Repeat) {
+            out << " {\n";
+            printCommands(c.body, out, depth + 1);
+            out << std::string(static_cast<std::size_t>(depth) * 2, ' ') << "}\n";
+        } else out << '\n';
     }
 }
-
-bool SemanticAnalyzer::declaration(const Token& keyword, bool isWorld) {
-    if (!repeats.empty()) {
-        report(DiagnosticCategory::Semantic, DiagnosticCode::NestedDeclaration, location(keyword),
-               "world and robot are only allowed at program scope");
-        return false;
-    }
-    bool& seen = isWorld ? seenWorld : seenRobot;
-    if (seen) {
-        report(DiagnosticCategory::Semantic,
-               isWorld ? DiagnosticCode::DuplicateWorld : DiagnosticCode::DuplicateRobot,
-               location(keyword), "Declaration must be unique");
-        return false;
-    }
-    const bool ordered = isWorld ? (!seenRobot && !seenCommand) : (seenWorld && !seenCommand);
-    seen = true;
-    if (!ordered) {
-        report(DiagnosticCategory::Semantic, DiagnosticCode::DeclarationOrder, location(keyword),
-               "Required order is world, robot, then commands");
-    }
-    return ordered;
 }
 
-void SemanticAnalyzer::command(const Token& keyword) {
-    if (repeats.empty()) {
-        seenCommand = true;
-        if (!seenWorld || !seenRobot) {
-            report(DiagnosticCategory::Semantic, DiagnosticCode::DeclarationOrder, location(keyword),
-                   "Commands require preceding world and robot declarations");
+AnalysisResult SemanticAnalyzer::analyze(Program program) const {
+    std::vector<Diagnostic> errors;
+    auto report = [&](SourceLocation where, const char* code, const char* message) {
+        errors.push_back({where, code, message});
+    };
+    if (program.width.value == 0) report(program.width.source, "non_positive_value", "ancho debe ser positivo");
+    if (program.height.value == 0) report(program.height.source, "non_positive_value", "alto debe ser positivo");
+    if (program.robots.empty()) report(program.end, "missing_robot", "se requiere al menos un robot");
+    for (const auto& wall : program.walls) {
+        if (wall.width.value == 0 || wall.height.value == 0)
+            report(wall.width.value == 0 ? wall.width.source : wall.height.source, "invalid_wall", "las dimensiones del muro deben ser positivas");
+        if (wall.x.value >= program.width.value || wall.y.value >= program.height.value ||
+            wall.width.value > program.width.value - std::min(wall.x.value, program.width.value) ||
+            wall.height.value > program.height.value - std::min(wall.y.value, program.height.value))
+            report(wall.x.source, "terrain_out_of_bounds", "muro fuera del mundo");
+    }
+    for (const auto& hole : program.holes) {
+        if (hole.x.value >= program.width.value || hole.y.value >= program.height.value)
+            report(hole.x.source, "terrain_out_of_bounds", "hueco fuera del mundo");
+        for (const auto& wall : program.walls) if (contains(wall, hole.x.value, hole.y.value)) {
+            report(hole.x.source, "hole_overlaps_solid", "hueco sobre terreno solido");
+            break;
         }
     }
-}
-
-ir::Origin SemanticAnalyzer::origin(const Token& token) {
-    return {nextId++, location(token)};
-}
-
-void SemanticAnalyzer::append(ir::Instruction instruction) {
-    auto& destination = repeats.empty() ? instructions : repeats.back().body;
-    destination.push_back(std::move(instruction));
-}
-
-void SemanticAnalyzer::world(const Token& keyword, const Token& width, const Token& height) {
-    requireActive();
-    const bool kind = requireKind(keyword, TokenType::WORLD);
-    const bool placement = declaration(keyword, true);
-    const auto source = origin(keyword);
-    const auto w = integer(width, DomainType::Dimension);
-    const auto h = integer(height, DomainType::Dimension);
-    if (kind && placement && w && h) {
-        ir::WorldInit operation{located<Dimension>(*w, width), located<Dimension>(*h, height)};
-        worldDimensions = operation;
-        append({source, operation});
-    }
-}
-
-void SemanticAnalyzer::robot(const Token& keyword, const Token& x,
-                             const Token& y, const Token& facing) {
-    requireActive();
-    const bool kind = requireKind(keyword, TokenType::ROBOT);
-    const bool placement = declaration(keyword, false);
-    const auto source = origin(keyword);
-    const auto xValue = integer(x, DomainType::Coordinate);
-    const auto yValue = integer(y, DomainType::Coordinate);
-    const auto orientation = direction(facing);
-    bool inBounds = true;
-    if (worldDimensions) {
-        if (xValue && *xValue >= worldDimensions->width.value.value()) {
-            report(DiagnosticCategory::Semantic, DiagnosticCode::InitialPositionOutOfBounds,
-                   location(x), "Initial x must be less than world width", DomainType::Coordinate);
-            inBounds = false;
-        }
-        if (yValue && *yValue >= worldDimensions->height.value.value()) {
-            report(DiagnosticCategory::Semantic, DiagnosticCode::InitialPositionOutOfBounds,
-                   location(y), "Initial y must be less than world height", DomainType::Coordinate);
-            inBounds = false;
+    std::set<std::string> ids;
+    std::set<std::pair<Integer, Integer>> cells;
+    std::set<Integer> priorities;
+    const Integer count = static_cast<Integer>(program.robots.size());
+    for (auto& robot : program.robots) {
+        if (!ids.insert(robot.id).second) report(robot.idSource, "duplicate_robot_id", "robot duplicado");
+        if (!cells.insert({robot.x.value, robot.y.value}).second) report(robot.x.source, "duplicate_start_cell", "celda inicial ocupada");
+        if (robot.x.value >= program.width.value || robot.y.value >= program.height.value)
+            report(robot.x.value >= program.width.value ? robot.x.source : robot.y.source, "initial_position_out_of_bounds", "robot fuera del mundo");
+        bool terrain = false;
+        for (const auto& wall : program.walls) terrain = terrain || contains(wall, robot.x.value, robot.y.value);
+        for (const auto& hole : program.holes) terrain = terrain || (hole.x.value == robot.x.value && hole.y.value == robot.y.value);
+        if (terrain) report(robot.x.source, "robot_on_terrain", "robot sobre terreno");
+        if (robot.explicitPriority) {
+            Integer p = robot.explicitPriority->value;
+            if (p < 1 || p > count) report(robot.explicitPriority->source, "priority_out_of_range", "prioridad fuera de rango");
+            else if (!priorities.insert(p).second) report(robot.explicitPriority->source, "duplicate_priority", "prioridad duplicada");
+            robot.priority = p;
         }
     }
-    if (kind && placement && xValue && yValue && orientation && inBounds) {
-        append({source, ir::RobotInit{located<Coordinate>(*xValue, x),
-                                     located<Coordinate>(*yValue, y), *orientation}});
+    Integer next = 1;
+    for (auto& robot : program.robots) if (!robot.explicitPriority) {
+        while (priorities.count(next)) ++next;
+        robot.priority = next;
+        priorities.insert(next++);
+    }
+    std::set<std::string> seenRuns;
+    std::uint64_t nextId = 1;
+    auto validate = [&](auto&& self, std::vector<Command>& commands) -> void {
+        for (auto& command : commands) {
+            command.id = nextId++;
+            if (command.kind == Command::Kind::Forward || command.kind == Command::Kind::Repeat) {
+                if (command.argument.value == 0) report(command.argument.source, "non_positive_value", "el valor debe ser positivo");
+            } else if (command.argument.value != 90 && command.argument.value != 180 && command.argument.value != 270)
+                report(command.argument.source, "invalid_angle", "el angulo debe ser 90, 180 o 270");
+            self(self, command.body);
+        }
+    };
+    for (auto& run : program.runs) {
+        validate(validate, run.commands);
+        auto robot = std::find_if(program.robots.begin(), program.robots.end(), [&](const Robot& r) { return r.id == run.id; });
+        if (robot == program.robots.end()) report(run.idSource, "unknown_run", "robot no declarado");
+        else if (!seenRuns.insert(run.id).second) report(run.idSource, "duplicate_run", "run duplicado");
+        else robot->commands = run.commands;
+    }
+    if (!errors.empty()) return {std::nullopt, std::move(errors)};
+    program.runs.clear();
+    return {std::move(program), {}};
+}
+
+void printIr(const Program& program, std::ostream& out) {
+    out << "RobotIR v2\nWorld " << program.width.value << ' ' << program.height.value << '\n';
+    for (const auto& wall : program.walls) out << "Wall " << wall.x.value << ' ' << wall.y.value << ' ' << wall.width.value << ' ' << wall.height.value << '\n';
+    for (const auto& hole : program.holes) out << "Hole " << hole.x.value << ' ' << hole.y.value << '\n';
+    for (const auto& robot : program.robots) {
+        out << "Robot " << robot.id << ' ' << robot.x.value << ' ' << robot.y.value << ' ' << directionName(robot.facing) << " priority=" << robot.priority << " {\n";
+        printCommands(robot.commands, out, 1);
+        out << "}\n";
     }
 }
-
-void SemanticAnalyzer::forward(const Token& keyword, const Token& distance) {
-    requireActive();
-    const bool kind = requireKind(keyword, TokenType::FORWARD);
-    command(keyword);
-    const auto source = origin(keyword);
-    const auto value = integer(distance, DomainType::Distance);
-    if (kind && value) append({source, ir::MoveForward{located<Distance>(*value, distance)}});
 }
-
-void SemanticAnalyzer::turn(const Token& keyword, const Token& angle, ir::TurnSense sense) {
-    requireActive();
-    const bool kind = requireKind(keyword, sense == ir::TurnSense::Left ? TokenType::LEFT : TokenType::RIGHT);
-    command(keyword);
-    const auto source = origin(keyword);
-    const auto value = integer(angle, DomainType::Angle);
-    if (kind && value) append({source, ir::Turn{sense, located<Angle>(*value, angle)}});
-}
-
-void SemanticAnalyzer::left(const Token& keyword, const Token& angle) {
-    turn(keyword, angle, ir::TurnSense::Left);
-}
-
-void SemanticAnalyzer::right(const Token& keyword, const Token& angle) {
-    turn(keyword, angle, ir::TurnSense::Right);
-}
-
-void SemanticAnalyzer::beginRepeat(const Token& keyword, const Token& count) {
-    requireActive();
-    const bool kind = requireKind(keyword, TokenType::REPEAT);
-    command(keyword);
-    const auto source = origin(keyword);
-    const auto value = integer(count, DomainType::Count);
-    std::optional<Located<Count>> typed;
-    if (kind && value) typed = located<Count>(*value, count);
-    // Keep the frame even on error, to check the body and balance callbacks.
-    repeats.push_back({source, typed, {}});
-}
-
-void SemanticAnalyzer::endRepeat(const Token& closingBrace) {
-    requireActive();
-    requireKind(closingBrace, TokenType::RBRACE);
-    if (repeats.empty()) {
-        report(DiagnosticCategory::Contract, DiagnosticCode::UnmatchedRepeatEnd,
-               location(closingBrace), "endRepeat has no matching beginRepeat");
-        return;
-    }
-    auto frame = std::move(repeats.back());
-    repeats.pop_back();
-    if (frame.count) {
-        append({frame.origin, ir::Repeat{*frame.count, std::move(frame.body), location(closingBrace)}});
-    }
-}
-
-AnalysisResult SemanticAnalyzer::finish(const Token& end) {
-    requireActive();
-    requireKind(end, TokenType::END);
-    for (const auto& frame : repeats) {
-        report(DiagnosticCategory::Contract, DiagnosticCode::UnclosedRepeat,
-               frame.origin.source, "beginRepeat was not followed by endRepeat");
-    }
-    if (!seenWorld) report(DiagnosticCategory::Semantic, DiagnosticCode::MissingWorld,
-                            location(end), "Program requires one world declaration");
-    if (!seenRobot) report(DiagnosticCategory::Semantic, DiagnosticCode::MissingRobot,
-                            location(end), "Program requires one robot declaration");
-    finished = true;
-    AnalysisResult result;
-    if (diagnostics.empty()) result.program = ir::Program{std::move(instructions), location(end)};
-    result.diagnostics = std::move(diagnostics);
-    return result;
-}
-
-} // namespace robotlang
