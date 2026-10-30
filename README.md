@@ -235,17 +235,4 @@ tests/           pruebas
 docs/            contrato semántico y guion de demo
 ```
 
-## Equipo
 
-- Integrante 1: análisis léxico.
-- Integrante 2: AST, análisis semántico, tipos e IR.
-- Integrante 3: parser descendente.
-- Integrante 4: pruebas y ejemplos.
-
-La extensión multirrobot con terreno y prioridades es la línea de trabajo fijada por el equipo. Cada integrante eligió una extensión de complejidad; las pruebas quedaron a cargo del Integrante 4 por ser la parte más sencilla.
-
-## Documentos
-
-- `docs/semantic_ir_contract.md`: contrato semántico y de IR.
-
-La preparación de la demostración para el asesor queda como trabajo futuro.
