@@ -6,7 +6,6 @@
 
 using namespace std;
 
-// Palabras reservadas: texto -> tipo de token
 static const unordered_map<string, TokenType> KEYWORDS = {
     {"world",   TokenType::WORLD},
     {"robot",   TokenType::ROBOT},
@@ -20,6 +19,11 @@ static const unordered_map<string, TokenType> KEYWORDS = {
     {"south",   TokenType::SOUTH},
     {"east",    TokenType::EAST},
     {"west",    TokenType::WEST},
+    {"obstacle", TokenType::OBSTACLE},
+    {"hole",    TokenType::HOLE},
+    {"wall",    TokenType::WALL},
+    {"priority", TokenType::PRIORITY},
+    {"run",     TokenType::RUN},
 };
 
 Scanner::Scanner(string source) : src(move(source)) {}
@@ -33,7 +37,6 @@ char Scanner::peek() const {
     return src[pos];
 }
 
-// Avanza un carácter y actualiza línea y columna
 char Scanner::advance() {
     char c = src[pos];
     pos++;
@@ -83,7 +86,7 @@ Token Scanner::nextToken() {
     }
 
     
-    if (isalpha(static_cast<unsigned char>(c))) {
+    if (isalpha(static_cast<unsigned char>(c)) || c == '_') {
         string text(1, c);
         while (isalnum(static_cast<unsigned char>(peek())) || peek() == '_') {
             text += advance();
@@ -92,8 +95,7 @@ Token Scanner::nextToken() {
         if (it != KEYWORDS.end()) {
             return Token{it->second, text, startLine, startCol};
         }
-        
-        return Token{TokenType::ERR, text, startLine, startCol};
+        return Token{TokenType::ID, text, startLine, startCol};
     }
 
     
