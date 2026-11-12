@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RobotLang IDE</title>
+<style>
+  :root {
+    --bg: #f8fafc;
+    --panel: #ffffff;
+    --line: #e2e8f0;
+    --text: #0f172a;
+    --muted: #64748b;
+    --accent: #2563eb;
+    --accent-soft: #dbeafe;
+    --code-bg: #0f172a;
+    --code-text: #e2e8f0;
+    --ok: #16a34a;
+    --err: #dc2626;
+    --err-soft: #fee2e2;
+    --mono: "Cascadia Code", Consolas, "DejaVu Sans Mono", Menlo, monospace;
+    --sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); display: flex; flex-direction: column; }
+
+  /* Barra superior */
+  header { display: flex; align-items: center; gap: 14px; padding: 10px 18px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0 8px 0 0; letter-spacing: -.2px; }
+  header h1 span { color: var(--accent); }
+  select, button { font: inherit; }
+  select { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  label.check { display: flex; align-items: center; gap: 6px; color: var(--muted); cursor: pointer; user-select: none; }
+  .btn { padding: 7px 16px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+  .btn:hover { filter: brightness(1.08); }
+  .btn.ghost { background: #fff; color: var(--text); border-color: var(--line); font-weight: 500; }
+  .hint { color: var(--muted); font-size: 12px; }
+  .status { margin-left: auto; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--line); color: var(--muted); }
+  .status.ok { background: #dcfce7; color: var(--ok); }
+  .status.err { background: var(--err-soft); color: var(--err); }
+
+  /* Distribución */
+  main { flex: 1; display: grid; grid-template-columns: minmax(340px, 42%) 1fr; gap: 14px; padding: 14px; min-height: 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .card-title { padding: 9px 14px; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; }
+  .left { display: grid; grid-template-rows: 1fr auto; gap: 14px; min-height: 0; }
+
+  /* Editor: textarea transparente encima del texto coloreado */
+  .editor { position: relative; flex: 1; display: flex; min-height: 0; background: var(--code-bg); font: 14px/21px var(--mono); }
+  .gutter { padding: 12px 0; min-width: 44px; text-align: right; color: #475569; background: #0b1222; user-select: none; overflow: hidden; }
+  .gutter div { padding: 0 10px 0 6px; height: 21px; }
+  .gutter div.has-err { color: #fff; background: var(--err); }
+  .code-wrap { position: relative; flex: 1; overflow: auto; }
+  .code-wrap pre, .code-wrap textarea { margin: 0; padding: 12px 14px; font: inherit; white-space: pre; tab-size: 2; min-height: 100%; min-width: 100%; }
+  .code-wrap pre { position: absolute; inset: 0; pointer-events: none; color: var(--code-text); width: max-content; }
+  .code-wrap textarea { position: relative; display: block; width: 100%; height: 100%; resize: none; border: 0; outline: 0; background: transparent; color: transparent; caret-color: #fff; overflow: hidden; }
+  .err-line { background: rgba(220, 38, 38, .25); box-shadow: inset 3px 0 0 var(--err); display: inline-block; min-width: 100%; }
+  .t-kw { color: #c084fc; font-weight: 600; }
+  .t-cmd { color: #38bdf8; font-weight: 600; }
+  .t-ent { color: #fb923c; font-weight: 600; }
+  .t-dir { color: #4ade80; }
+  .t-num { color: #f472b6; }
+  .t-id { color: #fde68a; }
+  .t-com { color: #64748b; font-style: italic; }
+  .t-brace { color: #fbbf24; }
+  .t-bad { color: #fff; background: var(--err); border-radius: 2px; }
+
+  /* Errores */
+  .errors { max-height: 170px; overflow: auto; }
+  .errors .empty { padding: 12px 14px; color: var(--muted); }
+  .error-item { display: flex; gap: 10px; align-items: baseline; padding: 8px 14px; border-top: 1px solid var(--line); cursor: pointer; }
+  .error-item:hover { background: #fef2f2; }
+  .phase { font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: var(--err-soft); color: var(--err); white-space: nowrap; }
+  .loc { font-family: var(--mono); color: var(--muted); white-space: nowrap; }
+
+  /* Pestañas */
+  .tabs { display: flex; gap: 2px; padding: 6px 8px 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  .tab { padding: 8px 14px; border: 0; background: none; color: var(--muted); font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab small { font-weight: 500; color: var(--muted); margin-left: 4px; }
+  .view { display: none; flex: 1; min-height: 0; overflow: auto; }
+  .view.active { display: flex; flex-direction: column; }
+  pre.out { margin: 0; padding: 14px 16px; font: 13px/1.55 var(--mono); white-space: pre; color: var(--text); }
+  pre.dark { background: var(--code-bg); color: var(--code-text); flex: 1; }
+  .placeholder { padding: 24px; color: var(--muted); }
+
+  /* IR antes / después */
+  .ir-grid { display: grid; grid-template-columns: 1fr 1fr; flex: 1; min-height: 0; }
+  .ir-grid > div { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--line); }
+  .ir-grid h3 { margin: 0; padding: 10px 16px; font-size: 13px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
+  .ir-grid pre { overflow: auto; flex: 1; }
+  .diff-del { background: #fee2e2; color: #991b1b; text-decoration: line-through; }
+  .diff-add { background: #dcfce7; color: #166534; }
+  .badge { font-size: 12px; padding: 1px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+  /* Simulación */
+  .sim { display: grid; grid-template-columns: 1fr 260px; flex: 1; min-height: 0; }
+  .stage { position: relative; min-height: 0; padding: 12px; display: flex; align-items: center; justify-content: center; }
+  canvas { display: block; }
+  .side { border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  .controls { display: flex; gap: 6px; padding: 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; align-items: center; }
+  .controls .btn { padding: 6px 12px; }
+  .tick-label { font-weight: 700; font-size: 15px; padding: 10px 12px 2px; }
+  .speed { display: flex; align-items: center; gap: 8px; padding: 0 12px 10px; color: var(--muted); font-size: 12px; }
+  .log { flex: 1; overflow: auto; padding: 0 12px 12px; font: 12.5px/1.6 var(--mono); }
+  .log .t { color: var(--muted); margin-top: 6px; }
+  .log .now { background: var(--accent-soft); border-radius: 4px; }
+  .log .ev-blocked { color: #b45309; }
+  .log .ev-fallen { color: var(--err); }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; }
+
+  /* Ejecución */
+  .exec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 14px; }
+  .exec-grid h3 { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+  .exec-grid > div { min-width: 0; }
+  .exec-grid pre { white-space: pre-wrap; margin: 0; padding: 12px; border-radius: 8px; background: var(--code-bg); color: var(--code-text); font: 13px/1.6 var(--mono); }
+  .match { margin: 0 14px; padding: 10px 14px; border-radius: 8px; font-weight: 600; }
+  .match.yes { background: #dcfce7; color: var(--ok); }
+  .match.no { background: var(--err-soft); color: var(--err); }
+
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    .left { grid-template-rows: 380px auto; }
+    .sim { grid-template-columns: 1fr; }
+    .side { border-left: 0; border-top: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Robot<span>Lang</span> IDE</h1>
+  <select id="examples" title="Cargar un ejemplo"><option value="">Ejemplos…</option></select>
+  <label class="check"><input type="checkbox" id="optimize" checked> Optimizar (-O1)</label>
+  <button class="btn" id="compile">▶ Compilar</button>
+  <span class="hint">Ctrl + Enter</span>
+  <span class="status" id="status">Sin compilar</span>
+</header>
+
+<main>
+  <section class="left">
+    <div class="card">
+      <div class="card-title"><span>Editor</span><span id="cursor-pos">1:1</span></div>
+      <div class="editor">
+        <div class="gutter" id="gutter"></div>
+        <div class="code-wrap" id="code-wrap">
+          <pre id="highlight" aria-hidden="true"></pre>
+          <textarea id="source" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span>Errores</span><span id="err-count"></span></div>
+      <div class="errors" id="errors"><div class="empty">Compila el programa para ver los errores.</div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-view="sim">Simulación</button>
+      <button class="tab" data-view="tokens">Tokens</button>
+      <button class="tab" data-view="ast">AST</button>
+      <button class="tab" data-view="ir">IR <small id="ir-count"></small></button>
+      <button class="tab" data-view="asm">x86-64 <small id="asm-count"></small></button>
+      <button class="tab" data-view="exec">Ejecución</button>
+    </nav>
+
+    <div class="view active" id="view-sim">
+      <div class="sim">
+        <div class="stage" id="stage"><canvas id="canvas"></canvas></div>
+        <div class="side">
+          <div class="controls">
+            <button class="btn ghost" id="first" title="Inicio">⏮</button>
+            <button class="btn ghost" id="prev" title="Tick anterior">◀</button>
+            <button class="btn" id="play" title="Reproducir / pausar">▶</button>
+            <button class="btn ghost" id="next" title="Tick siguiente">▶|</button>
+          </div>
+          <div class="tick-label" id="tick-label">Tick 0 / 0</div>
+          <div class="speed">Velocidad <input type="range" id="speed" min="150" max="1500" value="700" step="50" style="flex:1;direction:rtl"></div>
+          <div class="log" id="log"></div>
+          <div class="legend">
+            <span><i style="background:#334155"></i>Muro</span>
+            <span><i style="background:#0f172a;border-radius:50%"></i>Hueco</span>
+            <span><i style="background:#f59e0b"></i>Bloqueado</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="view" id="view-tokens"><pre class="out" id="out-tokens"></pre></div>
+    <div class="view" id="view-ast"><pre class="out" id="out-ast"></pre></div>
+    <div class="view" id="view-ir">
+      <div class="ir-grid">
+        <div><h3>Antes de optimizar <span class="badge" id="ir-before-n"></span></h3><pre class="out" id="out-ir"></pre></div>
+        <div><h3>Después de optimizar <span class="badge" id="ir-after-n"></span></h3><pre class="out" id="out-ir-opt"></pre></div>
+      </div>
+    </div>
+    <div class="view" id="view-asm"><pre class="out dark" id="out-asm"></pre></div>
+    <div class="view" id="view-exec">
+      <div class="exec-grid">
+        <div><h3>Programa x86-64 compilado y ejecutado</h3><pre id="out-exec"></pre></div>
+        <div><h3>Simulador del compilador</h3><pre id="out-result"></pre></div>
+      </div>
+      <div class="match" id="match"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+
+const source = document.getElementById("source");
+const highlight = document.getElementById("highlight");
+const gutter = document.getElementById("gutter");
+const codeWrap = document.getElementById("code-wrap");
+
+const WORDS = {
+  kw:  ["world", "robot", "at", "facing", "priority", "run", "repeat"],
+  cmd: ["forward", "left", "right"],
+  ent: ["wall", "obstacle", "hole"],
+  dir: ["north", "south", "east", "west"],
+};
+const CLASS_OF = {};
+for (const [cls, list] of Object.entries(WORDS)) list.forEach(w => CLASS_OF[w] = "t-" + cls);
+
+let errorLines = new Set();
+
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function highlightLine(line) {
+  let html = "";
+  const re = /(#.*$)|([A-Za-z_][A-Za-z0-9_]*)|(\d+)|([{}])|(\s+)|(.)/g;
+  let m;
+  while ((m = re.exec(line)) !== null) {
+    if (m[1]) html += `<span class="t-com">${escapeHtml(m[1])}</span>`;
+    else if (m[2]) html += `<span class="${CLASS_OF[m[2]] || "t-id"}">${m[2]}</span>`;
+    else if (m[3]) html += `<span class="t-num">${m[3]}</span>`;
+    else if (m[4]) html += `<span class="t-brace">${m[4]}</span>`;
+    else if (m[5]) html += m[5];
+    else html += `<span class="t-bad">${escapeHtml(m[6])}</span>`;
+  }
+  return html;
+}
+
+function renderEditor() {
+  const lines = source.value.split("\n");
+  highlight.innerHTML = lines.map((l, i) => {
+    const h = highlightLine(l) || " ";
+    return errorLines.has(i + 1) ? `<span class="err-line">${h}</span>` : h;
+  }).join("\n") + "\n";
+  gutter.innerHTML = lines.map((_, i) =>
+    `<div class="${errorLines.has(i + 1) ? "has-err" : ""}">${i + 1}</div>`).join("");
+  source.style.height = Math.max(codeWrap.clientHeight, lines.length * 21 + 40) + "px";
+  source.style.width = Math.max(codeWrap.clientWidth, highlight.scrollWidth) + "px";
+}
+
+source.addEventListener("input", () => { errorLines.clear(); renderEditor(); });
+codeWrap.addEventListener("scroll", () => { gutter.scrollTop = codeWrap.scrollTop; });
+source.addEventListener("keydown", e => {
+  if (e.key === "Tab") {                       // Tab inserta 2 espacios
+    e.preventDefault();
+    const s = source.selectionStart;
+    source.setRangeText("  ", s, source.selectionEnd, "end");
+    renderEditor();
+  }
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); compile(); }
+});
+["keyup", "click"].forEach(ev => source.addEventListener(ev, () => {
+  const before = source.value.slice(0, source.selectionStart).split("\n");
+  document.getElementById("cursor-pos").textContent = `${before.length}:${before.at(-1).length + 1}`;
+}));
+
+function goToLine(line, col) {
+  const lines = source.value.split("\n");
+  let pos = 0;
+  for (let i = 0; i < line - 1 && i < lines.length; i++) pos += lines[i].length + 1;
+  pos += Math.max(0, col - 1);
+  source.focus();
+  source.setSelectionRange(pos, pos);
+  codeWrap.scrollTop = Math.max(0, (line - 4) * 21);
+}
+
+
+document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t === tab));
+  document.querySelectorAll(".view").forEach(v =>
+    v.classList.toggle("active", v.id === "view-" + tab.dataset.view));
+  if (tab.dataset.view === "sim") resizeCanvas();
+}));
+
+
+const statusEl = document.getElementById("status");
+
+async function compile() {
+  statusEl.className = "status";
+  statusEl.textContent = "Compilando…";
+  let data;
+  try {
+    const res = await fetch("/api/compile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: source.value, optimize: document.getElementById("optimize").checked }),
+    });
+    data = await res.json();
+  } catch (e) {
+    statusEl.className = "status err";
+    statusEl.textContent = "Sin conexión con el servidor";
+    return;
+  }
+  showResult(data);
+}
+
+function setText(id, text, fallback = "") {
+  document.getElementById(id).textContent = text || fallback;
+}
+
+function countInstructions(ir) {
+  return (ir || "").split("\n").filter(l => /^\s*#\d+/.test(l)).length;
+}
+
+const PHASE = { lexico: "léxico", sintactico: "sintáctico", semantico: "semántico" };
+
+function showResult(data) {
+  // Errores
+  const errBox = document.getElementById("errors");
+  errorLines = new Set((data.errors || []).map(e => e.line).filter(Boolean));
+  renderEditor();
+  document.getElementById("err-count").textContent = data.errors.length ? `${data.errors.length}` : "";
+  errBox.innerHTML = data.errors.length
+    ? data.errors.map(e => `<div class="error-item" data-line="${e.line}" data-col="${e.col}">
+         <span class="phase">${PHASE[e.phase] || e.phase}</span><span class="loc">${e.line}:${e.col}</span>
+         <span>${escapeHtml(e.message)}</span></div>`).join("")
+    : `<div class="empty">✓ Sin errores: el programa pasó todas las fases.</div>`;
+  errBox.querySelectorAll(".error-item").forEach(el =>
+    el.addEventListener("click", () => goToLine(+el.dataset.line, +el.dataset.col)));
+
+  statusEl.className = "status " + (data.ok ? "ok" : "err");
+  const hora = new Date().toLocaleTimeString();
+  statusEl.textContent = (data.ok ? "✓ Compilado" : `✗ Error ${PHASE[data.errors[0]?.phase] || ""}`) + ` · ${hora}`;
+
+  // Fases
+  setText("out-tokens", data.tokens);
+  const stop = "(no disponible: el programa tiene errores en una fase anterior)";
+  setText("out-ast", data.ast, stop);
+  setText("out-asm", data.asm, stop);
+  setText("out-exec", data.execution, stop);
+  setText("out-result", data.result, stop);
+
+  // IR antes / después, marcando lo que cambió
+  const before = countInstructions(data.ir), after = countInstructions(data.irOptimized);
+  document.getElementById("ir-before-n").textContent = data.ok ? `${before} instr.` : "";
+  document.getElementById("ir-after-n").textContent = data.ok ? `${after} instr.` : "";
+  document.getElementById("ir-count").textContent = data.ok ? `${before}→${after}` : "";
+  renderIrDiff(data.ir, data.irOptimized, data.ok);
+
+  document.getElementById("asm-count").textContent =
+    data.ok ? `${data.asm.split("\n").length} líneas` : "";
+
+  const match = document.getElementById("match");
+  if (data.ok) {
+    const same = (data.execution || "").trim() === (data.result || "").trim();
+    match.className = "match " + (same ? "yes" : "no");
+    match.textContent = same
+      ? "✓ El programa compilado da el mismo resultado que el simulador."
+      : "✗ El programa compilado y el simulador no coinciden.";
+  } else {
+    match.className = "match";
+    match.textContent = "";
+  }
+
+  // Simulación
+  loadSimulation(data.ok ? data.ir : "", data.ok ? data.trace : "");
+}
+
+function renderIrDiff(ir, opt, ok) {
+  const outBefore = document.getElementById("out-ir");
+  const outAfter = document.getElementById("out-ir-opt");
+  if (!ok) {
+    outBefore.textContent = outAfter.textContent = "(no disponible: el programa tiene errores)";
+    return;
+  }
+  const strip = l => l.replace(/\s+@\d+:\d+/, "").trim();
+  const a = ir.split("\n"), b = opt.split("\n");
+  const inA = new Set(a.map(strip)), inB = new Set(b.map(strip));
+  outBefore.innerHTML = a.map(l => inB.has(strip(l)) ? escapeHtml(l)
+    : `<span class="diff-del">${escapeHtml(l)}</span>`).join("\n");
+  outAfter.innerHTML = b.map(l => inA.has(strip(l)) ? escapeHtml(l)
+    : `<span class="diff-add">${escapeHtml(l)}</span>`).join("\n");
+}
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const COLORS = ["#2563eb", "#db2777", "#16a34a", "#9333ea", "#ea580c", "#0891b2", "#ca8a04", "#4f46e5"];
+const HEADING = { north: [0, 1], east: [1, 0], south: [0, -1], west: [-1, 0] };
+
+let world = null;     // { w, h, walls: [], holes: [] }
+let frames = [];      // frames[k] = estado de cada robot después del tick k
+let ticks = [];       // ticks[k-1] = eventos del tick k
+let current = 0;      // frame mostrado
+let anim = null;      // animación en curso
+let playing = false;
+let timer = null;
+
+function parseWorld(ir) {
+  const w = { w: 0, h: 0, walls: [], holes: [], robots: [] };
+  for (const line of ir.split("\n")) {
+    let m;
+    if ((m = line.match(/^World (\d+) (\d+)/))) { w.w = +m[1]; w.h = +m[2]; }
+    else if ((m = line.match(/^Wall (\d+) (\d+) (\d+) (\d+)/))) w.walls.push(m.slice(1).map(Number));
+    else if ((m = line.match(/^Hole (\d+) (\d+)/))) w.holes.push([+m[1], +m[2]]);
+    else if ((m = line.match(/^Robot (\S+) (\d+) (\d+) (\w+)/)))
+      w.robots.push({ id: m[1], x: +m[2], y: +m[3], facing: m[4], fallen: false });
+  }
+  return w;
+}
+
+function parseTrace(trace) {
+  const result = [];
+  for (const line of trace.split("\n")) {
+    let m;
+    if ((m = line.match(/^tick (\d+)/))) { result.push({ tick: +m[1], events: [] }); continue; }
+    const ev = { text: line.trim() };
+    if ((m = line.match(/^\s+(\S+) forward (\d+) \((-?\d+),(-?\d+)\)->\((-?\d+),(-?\d+)\)(.*)$/))) {
+      Object.assign(ev, { robot: m[1], kind: "move", to: [+m[5], +m[6]],
+        blocked: m[7].includes("blocked"), fallen: m[7].includes("fallen") });
+    } else if ((m = line.match(/^\s+(\S+) (left|right) (\d+) facing (\w+)/))) {
+      Object.assign(ev, { robot: m[1], kind: "turn", facing: m[4] });
+    }
+    if (result.length && ev.text) result.at(-1).events.push(ev);
+  }
+  return result;
+}
+
+function loadSimulation(ir, trace) {
+  stop();
+  if (!ir) { world = null; frames = []; ticks = []; current = 0; updateSide(); draw(); return; }
+  world = parseWorld(ir);
+  ticks = parseTrace(trace);
+  // Construir el estado de cada robot después de cada tick
+  let state = world.robots.map(r => ({ ...r, blocked: false }));
+  frames = [state];
+  for (const t of ticks) {
+    state = state.map(r => ({ ...r, blocked: false }));
+    for (const ev of t.events) {
+      const r = state.find(s => s.id === ev.robot);
+      if (!r) continue;
+      if (ev.kind === "move") { [r.x, r.y] = ev.to; r.blocked = ev.blocked; r.fallen = ev.fallen; }
+      if (ev.kind === "turn") r.facing = ev.facing;
+    }
+    frames.push(state);
+  }
+  current = 0;
+  resizeCanvas();
+  updateSide();
+}
+
+function cellSize() {
+  if (!world) return 0;
+  return Math.floor(Math.min((canvas.clientWidth - 30) / world.w, (canvas.clientHeight - 30) / world.h));
+}
+
+function resizeCanvas() {
+  const stage = document.getElementById("stage");
+  const dpr = window.devicePixelRatio || 1;
+  const w = stage.clientWidth - 24, h = stage.clientHeight - 24;
+  canvas.style.width = w + "px";
+  canvas.style.height = h + "px";
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+window.addEventListener("resize", resizeCanvas);
+
+function draw(progress = 1) {
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+  ctx.clearRect(0, 0, W, H);
+  if (!world) {
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "14px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Compila un programa sin errores para ver la simulación", W / 2, H / 2);
+    return;
+  }
+  const c = cellSize();
+  const ox = Math.floor((W - c * world.w) / 2) + 10, oy = Math.floor((H - c * world.h) / 2) - 6;
+  const px = x => ox + x * c;                      // columna -> pixel
+  const py = y => oy + (world.h - 1 - y) * c;      // fila -> pixel (y crece hacia arriba)
+
+  // Cuadrícula
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(ox, oy, c * world.w, c * world.h);
+  ctx.strokeStyle = "#e2e8f0";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= world.w; i++) { ctx.beginPath(); ctx.moveTo(ox + i * c + .5, oy); ctx.lineTo(ox + i * c + .5, oy + world.h * c); ctx.stroke(); }
+  for (let j = 0; j <= world.h; j++) { ctx.beginPath(); ctx.moveTo(ox, oy + j * c + .5); ctx.lineTo(ox + world.w * c, oy + j * c + .5); ctx.stroke(); }
+  ctx.fillStyle = "#94a3b8";
+  ctx.font = `${Math.max(9, Math.min(12, c / 3))}px sans-serif`;
+  ctx.textAlign = "center";
+  for (let i = 0; i < world.w; i++) ctx.fillText(i, px(i) + c / 2, oy + world.h * c + 14);
+  ctx.textAlign = "right";
+  for (let j = 0; j < world.h; j++) ctx.fillText(j, ox - 5, py(j) + c / 2 + 4);
+
+  // Muros y huecos
+  ctx.fillStyle = "#334155";
+  for (const [x, y, w, h] of world.walls)
+    for (let i = x; i < x + w; i++) for (let j = y; j < y + h; j++) ctx.fillRect(px(i) + 1, py(j) + 1, c - 1, c - 1);
+  for (const [x, y] of world.holes) {
+    ctx.fillStyle = "#0f172a";
+    ctx.beginPath(); ctx.arc(px(x) + c / 2, py(y) + c / 2, c * .38, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Robots, interpolando entre el frame anterior y el actual
+  const now = frames[current] || [], prev = frames[Math.max(0, current - (anim ? 1 : 0))] || now;
+  now.forEach((r, i) => {
+    const p = prev[i] || r;
+    const t = anim ? ease(progress) : 1;
+    const x = p.x + (r.x - p.x) * t, y = p.y + (r.y - p.y) * t;
+    const cx = px(x) + c / 2, cy = py(y) + c / 2;
+    let radius = c * .34;
+    if (r.fallen) radius *= anim && !p.fallen ? Math.max(0, 1 - t) : 0;
+    if (radius <= 0) return;
+    const color = COLORS[i % COLORS.length];
+    if (r.blocked) {                               // aro naranja: lo bloquearon
+      ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(cx, cy, radius + 4, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.fill();
+    // Flecha con la dirección a la que mira
+    const facing = t < .5 ? p.facing : r.facing;
+    const [dx, dy] = HEADING[facing] || [0, 1];
+    const tipX = cx + dx * radius * .85, tipY = cy - dy * radius * .85;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(cx - dy * radius * .45 - dx * radius * .2, cy - dx * radius * .45 + dy * radius * .2);
+    ctx.lineTo(cx + dy * radius * .45 - dx * radius * .2, cy + dx * radius * .45 + dy * radius * .2);
+    ctx.fill();
+    ctx.fillStyle = "#0f172a";
+    ctx.font = `600 ${Math.max(10, Math.min(13, c / 3))}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText(r.id, cx, cy - radius - 5);
+  });
+}
+
+const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+function goTo(frame, animate = true) {
+  frame = Math.max(0, Math.min(frames.length - 1, frame));
+  if (frame === current) return;
+  const forward = frame === current + 1;
+  current = frame;
+  updateSide();
+  if (!animate || !forward) { anim = null; draw(); return; }
+  const start = performance.now(), duration = Math.min(600, +document.getElementById("speed").value * .8);
+  cancelAnimationFrame(anim);
+  const step = now => {
+    const p = Math.min(1, (now - start) / duration);
+    draw(p);
+    if (p < 1) anim = requestAnimationFrame(step); else { anim = null; draw(); }
+  };
+  anim = requestAnimationFrame(step);
+}
+
+function updateSide() {
+  document.getElementById("tick-label").textContent = `Tick ${current} / ${Math.max(0, frames.length - 1)}`;
+  const log = document.getElementById("log");
+  log.innerHTML = ticks.map((t, k) =>
+    `<div class="${k + 1 === current ? "now" : ""}"><div class="t">tick ${t.tick}</div>` +
+    t.events.map(e => `<div class="${e.fallen ? "ev-fallen" : e.blocked ? "ev-blocked" : ""}">${escapeHtml(e.text)}</div>`).join("") +
+    `</div>`).join("") || `<div class="t">Sin movimientos.</div>`;
+  const active = log.querySelector(".now");
+  if (active) active.scrollIntoView({ block: "nearest" });
+  document.getElementById("play").textContent = playing ? "⏸" : "▶";
+}
+
+function play() {
+  if (playing) { stop(); return; }
+  if (current >= frames.length - 1) goTo(0, false);
+  playing = true;
+  updateSide();
+  const tickOnce = () => {
+    if (current >= frames.length - 1) { stop(); return; }
+    goTo(current + 1);
+    timer = setTimeout(tickOnce, +document.getElementById("speed").value);
+  };
+  tickOnce();
+}
+
+function stop() {
+  playing = false;
+  clearTimeout(timer);
+  updateSide();
+}
+
+document.getElementById("play").onclick = play;
+document.getElementById("next").onclick = () => { stop(); goTo(current + 1); };
+document.getElementById("prev").onclick = () => { stop(); goTo(current - 1, false); };
+document.getElementById("first").onclick = () => { stop(); goTo(0, false); };
+document.getElementById("compile").onclick = compile;
+
+
+const select = document.getElementById("examples");
+let examples = {};
+fetch("/api/examples").then(r => r.json()).then(data => {
+  examples = data;
+  for (const name of Object.keys(data)) select.add(new Option(name, name));
+  const first = data["patrol.robot"] ? "patrol.robot" : Object.keys(data)[0];
+  if (first) { select.value = first; source.value = data[first]; renderEditor(); compile(); }
+});
+select.addEventListener("change", () => {
+  if (!select.value) return;
+  source.value = examples[select.value];
+  errorLines.clear();
+  renderEditor();
+  compile();
+});
+
+renderEditor();
+resizeCanvas();
+</script>
+</body>
+</html>
