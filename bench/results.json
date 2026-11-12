@@ -1,0 +1,376 @@
+{
+  "environment": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "os": "Linux-6.18.44-fc-v378-x86_64-with-glibc2.39",
+    "gcc": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "python": "3.13.16"
+  },
+  "runs": 30,
+  "expressiveness": [
+    {
+      "program": "patrol.robot",
+      "dsl_loc": 14,
+      "cpp_loc": 52
+    },
+    {
+      "program": "square_big.robot",
+      "dsl_loc": 9,
+      "cpp_loc": 17
+    },
+    {
+      "program": "redundant.robot",
+      "dsl_loc": 19,
+      "cpp_loc": 23
+    }
+  ],
+  "optimizations": {
+    "square_big": {
+      "none": {
+        "instr_before": 3,
+        "instr_after": 3,
+        "ticks_before": 2000001,
+        "ticks_after": 2000001,
+        "rewrites": 0,
+        "asm_lines": 269,
+        "output": "r1: (2, 2) north\n",
+        "time": {
+          "mean_ms": 30.56358393333956,
+          "sd_ms": 4.256673323425665
+        }
+      },
+      "merge": {
+        "instr_before": 3,
+        "instr_after": 3,
+        "ticks_before": 2000001,
+        "ticks_after": 2000001,
+        "rewrites": 0,
+        "asm_lines": 269,
+        "output": "r1: (2, 2) north\n",
+        "time": {
+          "mean_ms": 29.557655433342234,
+          "sd_ms": 4.1004565078743305
+        }
+      },
+      "turns": {
+        "instr_before": 3,
+        "instr_after": 3,
+        "ticks_before": 2000001,
+        "ticks_after": 2000001,
+        "rewrites": 0,
+        "asm_lines": 269,
+        "output": "r1: (2, 2) north\n",
+        "time": {
+          "mean_ms": 29.968418333328373,
+          "sd_ms": 2.8004574823386648
+        }
+      },
+      "all": {
+        "instr_before": 3,
+        "instr_after": 3,
+        "ticks_before": 2000001,
+        "ticks_after": 2000001,
+        "rewrites": 0,
+        "asm_lines": 269,
+        "output": "r1: (2, 2) north\n",
+        "time": {
+          "mean_ms": 26.071372033334228,
+          "sd_ms": 2.4242787163674753
+        }
+      }
+    },
+    "redundant": {
+      "none": {
+        "instr_before": 13,
+        "instr_after": 13,
+        "ticks_before": 3000001,
+        "ticks_after": 3000001,
+        "rewrites": 0,
+        "asm_lines": 354,
+        "output": "r1: (0, 0) east\n",
+        "time": {
+          "mean_ms": 24.774513666670828,
+          "sd_ms": 0.8648030614716016
+        }
+      },
+      "merge": {
+        "instr_before": 13,
+        "instr_after": 9,
+        "ticks_before": 3000001,
+        "ticks_after": 2000001,
+        "rewrites": 4,
+        "asm_lines": 318,
+        "output": "r1: (0, 0) east\n",
+        "time": {
+          "mean_ms": 23.01838243333047,
+          "sd_ms": 1.4992820209418125
+        }
+      },
+      "turns": {
+        "instr_before": 13,
+        "instr_after": 9,
+        "ticks_before": 3000001,
+        "ticks_after": 2000001,
+        "rewrites": 3,
+        "asm_lines": 329,
+        "output": "r1: (0, 0) east\n",
+        "time": {
+          "mean_ms": 21.005161133342654,
+          "sd_ms": 1.3094713048027793
+        }
+      },
+      "all": {
+        "instr_before": 13,
+        "instr_after": 5,
+        "ticks_before": 3000001,
+        "ticks_after": 1000001,
+        "rewrites": 7,
+        "asm_lines": 293,
+        "output": "r1: (0, 0) east\n",
+        "time": {
+          "mean_ms": 16.76215059999322,
+          "sd_ms": 1.468980121983519
+        }
+      }
+    },
+    "multi": {
+      "none": {
+        "instr_before": 52,
+        "instr_after": 52,
+        "ticks_before": 3000001,
+        "ticks_after": 3000001,
+        "rewrites": 0,
+        "asm_lines": 761,
+        "output": "r1: (5, 5) north\nr2: (25, 5) north\nr3: (5, 25) north\nr4: (25, 25) north\n",
+        "time": {
+          "mean_ms": 207.76421803334037,
+          "sd_ms": 15.793513106123727
+        }
+      },
+      "merge": {
+        "instr_before": 52,
+        "instr_after": 36,
+        "ticks_before": 3000001,
+        "ticks_after": 2000001,
+        "rewrites": 16,
+        "asm_lines": 617,
+        "output": "r1: (5, 5) north\nr2: (25, 5) north\nr3: (5, 25) north\nr4: (25, 25) north\n",
+        "time": {
+          "mean_ms": 194.79793980000295,
+          "sd_ms": 15.129595222224724
+        }
+      },
+      "turns": {
+        "instr_before": 52,
+        "instr_after": 52,
+        "ticks_before": 3000001,
+        "ticks_after": 3000001,
+        "rewrites": 0,
+        "asm_lines": 761,
+        "output": "r1: (5, 5) north\nr2: (25, 5) north\nr3: (5, 25) north\nr4: (25, 25) north\n",
+        "time": {
+          "mean_ms": 204.29747536667264,
+          "sd_ms": 17.839302068742306
+        }
+      },
+      "all": {
+        "instr_before": 52,
+        "instr_after": 36,
+        "ticks_before": 3000001,
+        "ticks_after": 2000001,
+        "rewrites": 16,
+        "asm_lines": 617,
+        "output": "r1: (5, 5) north\nr2: (25, 5) north\nr3: (5, 25) north\nr4: (25, 25) north\n",
+        "time": {
+          "mean_ms": 187.00345809998757,
+          "sd_ms": 11.014991700770873
+        }
+      }
+    },
+    "interaction": {
+      "none": {
+        "instr_before": 4,
+        "instr_after": 4,
+        "ticks_before": 4,
+        "ticks_after": 4,
+        "rewrites": 0,
+        "asm_lines": 297,
+        "output": "a: (3, 1) east\nb: (3, 2) north\n",
+        "time": {
+          "mean_ms": 1.4478052333326257,
+          "sd_ms": 0.34017871262162863
+        }
+      },
+      "merge": {
+        "instr_before": 4,
+        "instr_after": 4,
+        "ticks_before": 4,
+        "ticks_after": 4,
+        "rewrites": 0,
+        "asm_lines": 297,
+        "output": "a: (3, 1) east\nb: (3, 2) north\n",
+        "time": {
+          "mean_ms": 1.4103805333320452,
+          "sd_ms": 0.08550359681124359
+        }
+      },
+      "turns": {
+        "instr_before": 4,
+        "instr_after": 4,
+        "ticks_before": 4,
+        "ticks_after": 4,
+        "rewrites": 0,
+        "asm_lines": 297,
+        "output": "a: (3, 1) east\nb: (3, 2) north\n",
+        "time": {
+          "mean_ms": 1.3373310333311867,
+          "sd_ms": 0.062262974471566916
+        }
+      },
+      "all": {
+        "instr_before": 4,
+        "instr_after": 4,
+        "ticks_before": 4,
+        "ticks_after": 4,
+        "rewrites": 0,
+        "asm_lines": 297,
+        "output": "a: (3, 1) east\nb: (3, 2) north\n",
+        "time": {
+          "mean_ms": 1.1070636999913102,
+          "sd_ms": 0.1719696714745605
+        }
+      }
+    }
+  },
+  "runtime": {
+    "square_big": {
+      "simulator": {
+        "mean_ms": 638.8862631666635,
+        "sd_ms": 100.48490150333583
+      },
+      "same_output": true,
+      "manual_cpp_O2": {
+        "mean_ms": 3.1750309666544276,
+        "sd_ms": 0.6167501418897395
+      },
+      "manual_same_output": true
+    },
+    "redundant": {
+      "simulator": {
+        "mean_ms": 923.4369783666674,
+        "sd_ms": 117.51837528964036
+      },
+      "same_output": true,
+      "manual_cpp_O2": {
+        "mean_ms": 5.1881676333380256,
+        "sd_ms": 0.372941843564961
+      },
+      "manual_same_output": true
+    },
+    "multi": {
+      "simulator": {
+        "mean_ms": 4208.578351866659,
+        "sd_ms": 369.8882892436503
+      },
+      "same_output": true
+    },
+    "interaction": {
+      "simulator": {
+        "mean_ms": 2.207120199993066,
+        "sd_ms": 0.14057232583505264
+      },
+      "same_output": true
+    }
+  },
+  "errors": [
+    {
+      "program": "e01_angulo_invalido.robot",
+      "detected": true,
+      "message": "invalid_angle: el angulo debe ser 90, 180 o 270"
+    },
+    {
+      "program": "e02_distancia_cero.robot",
+      "detected": true,
+      "message": "non_positive_value: el valor debe ser positivo"
+    },
+    {
+      "program": "e03_repeat_cero.robot",
+      "detected": true,
+      "message": "non_positive_value: el valor debe ser positivo"
+    },
+    {
+      "program": "e04_robot_fuera.robot",
+      "detected": true,
+      "message": "initial_position_out_of_bounds: robot fuera del mundo"
+    },
+    {
+      "program": "e05_robot_sobre_muro.robot",
+      "detected": true,
+      "message": "robot_on_terrain: robot sobre terreno"
+    },
+    {
+      "program": "e06_hueco_sobre_muro.robot",
+      "detected": true,
+      "message": "hole_overlaps_solid: hueco sobre terreno solido"
+    },
+    {
+      "program": "e07_muro_fuera.robot",
+      "detected": true,
+      "message": "terrain_out_of_bounds: muro fuera del mundo"
+    },
+    {
+      "program": "e08_robot_duplicado.robot",
+      "detected": true,
+      "message": "duplicate_robot_id: robot duplicado"
+    },
+    {
+      "program": "e09_celda_compartida.robot",
+      "detected": true,
+      "message": "duplicate_start_cell: celda inicial ocupada"
+    },
+    {
+      "program": "e10_run_desconocido.robot",
+      "detected": true,
+      "message": "unknown_run: robot no declarado"
+    },
+    {
+      "program": "e11_run_duplicado.robot",
+      "detected": true,
+      "message": "duplicate_run: run duplicado"
+    },
+    {
+      "program": "e12_prioridad_duplicada.robot",
+      "detected": true,
+      "message": "duplicate_priority: prioridad duplicada"
+    },
+    {
+      "program": "e13_prioridad_fuera_rango.robot",
+      "detected": true,
+      "message": "priority_out_of_range: prioridad fuera de rango"
+    },
+    {
+      "program": "e14_mundo_vacio.robot",
+      "detected": true,
+      "message": "missing_robot: se requiere al menos un robot"
+    },
+    {
+      "program": "e15_numero_enorme.robot",
+      "detected": true,
+      "message": "integer_out_of_range"
+    },
+    {
+      "program": "e16_sale_del_mundo.robot",
+      "detected": false,
+      "message": ""
+    },
+    {
+      "program": "e17_simbolo_invalido.robot",
+      "detected": true,
+      "message": "se esperaba forward, left, right o repeat"
+    },
+    {
+      "program": "e18_falta_llave.robot",
+      "detected": true,
+      "message": "se esperaba '}' para cerrar run"
+    }
+  ]
+}
