@@ -1,8 +1,8 @@
 # RobotLang
 
-> Compilador y simulador de un lenguaje para programar robots sobre una cuadrícula con terreno.
+> Lenguaje y compilador para planificar y verificar las rutas de varios robots de almacén (AGV) antes de ponerlos en marcha.
 
-RobotLang es el proyecto de Compiladores (CS3402). El objetivo es compilar programas en un lenguaje propio y simular su ejecución de forma determinista. El programa se divide en una parte **descriptiva** (`world`) que define el tamaño, los muros, los obstáculos, los huecos y los robots, y una parte **declarativa** (`run`) que define el comportamiento de cada robot.
+RobotLang es el proyecto de Compiladores (CS3402). En un almacén, varios robots comparten pasillos con estanterías, columnas y zonas prohibidas. Con RobotLang, el planificador describe el plano (`world`: tamaño, muros, obstáculos, huecos y robots) y la ruta de cada robot (`run`). El compilador detecta errores del plan antes de ejecutarlo, simula de forma determinista cómo interactúan los robots y genera un programa x86-64.
 
 La implementación actual incluye análisis léxico, parser y validación de la extensión multirrobot, IR, simulación round robin, optimización y generación de assembly x86-64.
 
@@ -108,7 +108,7 @@ El optimizador fusiona avances consecutivos, combina giros consecutivos y elimin
 ### Núcleo actual
 
 - Scanner con tokens base y tokens de la extensión.
-- Tipos de dominio fuertes: `Dimension`, `Coordinate`, `Distance`, `Angle`, `Count` y `Direction`.
+- Tipos de dominio definidos en `types.h` (`Dimension`, `Coordinate`, `Distance`, `Angle`, `Count` y `Direction`); las validaciones por rol se hacen en el análisis semántico.
 - Validación semántica de declaraciones, valores, ángulos, direcciones y posición inicial.
 - IR estructurada con IDs, ubicaciones y `repeat` anidados.
 - Diagnósticos con código estable, línea y columna.
@@ -264,6 +264,7 @@ robotc <archivo.robot> [opciones]
 | `examples/patrol.robot` | Dos robots con prioridad, un muro y un hueco; r2 queda bloqueado por r1. |
 | `examples/obstacles.robot` | Los tres tipos de terreno: un robot choca con un muro, otro con un obstáculo y otro cae en un hueco. |
 | `examples/optimization.robot` | Avances y giros que el optimizador reduce de 4 instrucciones a 1. |
+| `examples/warehouse.robot` | Almacén con estanterías, una columna y una rampa prohibida: tres AGV se cruzan y la prioridad decide quién pasa primero. |
 
 ## Entorno web
 
