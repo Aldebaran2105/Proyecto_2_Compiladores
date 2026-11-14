@@ -215,6 +215,90 @@ robotc <archivo.robot> [opciones]
 --max-ticks N   fija el límite de ticks
 ```
 
+## Guía rápida de uso
+
+1. Escribe un programa en un archivo `.robot`, por ejemplo `mi_programa.robot`:
+
+   ```robot
+   world 10 10 {
+     wall 4 0 1 5
+     robot r1 at 0 2 facing east
+   }
+   run r1 {
+     forward 9
+     left 90
+     forward 3
+   }
+   ```
+
+2. Compílalo y revisa que no tenga errores:
+
+   ```sh
+   ./build/robotc mi_programa.robot --ir
+   ```
+
+   Si hay un error, el compilador indica la línea, la columna y el motivo (por ejemplo, `invalid_angle` para `right 45`).
+
+3. Simúlalo y mira el resultado:
+
+   ```sh
+   ./build/robotc mi_programa.robot --trace   # paso a paso
+   ./build/robotc mi_programa.robot --grid    # mapa final en ASCII
+   ```
+
+   En este ejemplo, r1 avanza hacia el este, el muro lo detiene en `(3, 2)`, gira al norte y sube hasta `(3, 5)`.
+
+4. Genera el ejecutable x86-64 y córrelo:
+
+   ```sh
+   ./build/robotc mi_programa.robot --optimize --emit mi_programa.s
+   gcc mi_programa.s -o mi_programa
+   ./mi_programa
+   ```
+
+## Ejemplos
+
+| Archivo | Qué muestra |
+| --- | --- |
+| `examples/square.robot` | Un robot recorre un cuadrado con `repeat`. |
+| `examples/patrol.robot` | Dos robots con prioridad, un muro y un hueco; r2 queda bloqueado por r1. |
+| `examples/obstacles.robot` | Los tres tipos de terreno: un robot choca con un muro, otro con un obstáculo y otro cae en un hueco. |
+| `examples/optimization.robot` | Avances y giros que el optimizador reduce de 4 instrucciones a 1. |
+
+## Entorno web
+
+La carpeta `web/` contiene un entorno de desarrollo que muestra todas las fases del compilador: editor con resaltado y errores marcados por fase (léxico, sintáctico y semántico), tokens, AST, IR antes y después de optimizar, ensamblador x86-64, ejecución real del binario y una simulación animada de los robots tick a tick.
+
+El entorno no reimplementa el compilador: el servidor llama a `robotc` con la opción de cada fase. Solo usa la biblioteca estándar de Python y no necesita internet.
+
+```sh
+cmake -S . -B build && cmake --build build   # compilar robotc
+python3 web/server.py
+```
+
+Luego abre <http://localhost:8000>. Requiere Linux o WSL con `gcc` disponible.
+
+## Evaluación experimental
+
+La carpeta `bench/` reproduce todas las tablas de la evaluación del informe: expresividad (líneas de código frente a C++ hecho a mano), rendimiento (binario generado, simulador y C++ `-O2`), impacto de cada optimización y detección de errores.
+
+```sh
+cmake -S . -B build-rel -DCMAKE_BUILD_TYPE=Release
+cmake --build build-rel
+python3 bench/run_bench.py            # 30 repeticiones por medición
+python3 bench/run_bench.py --runs 3   # prueba rápida
+```
+
+Los resultados se guardan en `bench/results.json`.
+
+| Carpeta o archivo | Contenido |
+| --- | --- |
+| `bench/programs/` | Programas grandes para medir rendimiento y optimizaciones. |
+| `bench/manual/` | Implementaciones equivalentes escritas a mano en C++. |
+| `bench/errors/` | 18 programas con un error cada uno. |
+| `bench/opt_stats.cpp` | Aplica cada optimización por separado y cuenta instrucciones y ticks. |
+| `bench/run_bench.py` | Ejecuta todas las mediciones. |
+
 ## Estructura
 
 ```text
@@ -231,8 +315,8 @@ src/optimizer.*   optimizaciones IR
 src/simulator.*   prioridades y simulación round robin
 src/codegen.*     generación de assembly x86-64
 examples/        programas de ejemplo
+web/             entorno web (server.py e index.html)
+bench/           programas y scripts de la evaluación experimental
 tests/           pruebas
 docs/            contrato semántico y guion de demo
 ```
-
-
